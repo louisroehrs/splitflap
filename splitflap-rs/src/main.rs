@@ -43,7 +43,7 @@ const SEAM: Color = Color::RGB(0, 0, 0);
 
 // Animation tuning. Frames spent on a single character step (one flap). Lower =
 // faster clatter. At 60 FPS, 6 frames ≈ 100 ms per character.
-const FRAMES_PER_STEP: u32 = 6;
+const FRAMES_PER_STEP: u32 = 18;
 const FPS: u32 = 60;
 
 // Candidate paths for a bold monospace font on Ubuntu / Raspberry Pi OS.
@@ -154,7 +154,7 @@ impl<'a> GlyphCache<'a> {
         let half = h / 2;
         let pad = (w / 16).max(1) as i32;
         let seam_w = (h / 28).max(1);
-        let fsize = ((h as f32 * 0.62) as u16).max(8);
+        let fsize = ((h as f32 * 0.90) as u16).max(8);
         let mut font = ttf.load_font(font_path, fsize)?;
         font.set_style(sdl2::ttf::FontStyle::BOLD);
 
