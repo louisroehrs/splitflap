@@ -1,0 +1,12 @@
+Welcome to happy organization
+ 
+event                 time    room
+--------------------- ------- -----
+startup showcase      12:01pm main
+networking             5:00pm main
+ultimate board gamers  7:00pm main
+ 
+ 
+ 
+be excellent to each other
+become a member today
