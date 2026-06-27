@@ -82,7 +82,7 @@ class GlyphCache:
         self.half = h // 2
         pad = max(1, w // 16)
         seam_w = max(1, h // 28)
-        fsize = max(8, int(h * 0.62))
+        fsize = max(8, int(h * 0.90))
         font = pygame.font.SysFont("dejavusansmono", fsize, bold=True)
 
         self.tops: dict[str, pygame.Surface] = {}
