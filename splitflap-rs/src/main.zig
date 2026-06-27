@@ -14,6 +14,10 @@
 const std = @import("std");
 
 const c = @cImport({
+    // Stop SDL from pulling <arm_neon.h> into Zig's C-header translator. We link
+    // the prebuilt SDL library, so we never need the NEON intrinsics, and
+    // translate-c can't parse that header (it fails on ARM/Raspberry Pi builds).
+    @cDefine("SDL_DISABLE_ARM_NEON_H", "1");
     @cInclude("SDL2/SDL.h");
     @cInclude("SDL2/SDL_ttf.h");
 });

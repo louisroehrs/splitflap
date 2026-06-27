@@ -81,9 +81,65 @@ pkg-config just becomes a plain `-lSDL2 -lSDL2_ttf` on Linux.
 
 Needs an X/Wayland session (SDL2 opens a window), same as the Rust version. For
 an always-on display, launch it from the desktop autostart or a systemd user
-service. Building natively on the Pi is simplest; cross-compiling from another
-machine with `-Dtarget=aarch64-linux-gnu` is possible but needs the Pi's SDL2
-libraries/headers available as a sysroot.
+service.
+
+#### Out of memory while compiling on the Pi?
+Raspberry Pi OS ships with only **100 MB** of swap, and Zig's compiler
+(especially `-Doptimize=ReleaseFast` with LTO) is memory-hungry. Three options,
+cheapest first:
+
+- **Use a lighter optimization level.** Debug or `ReleaseSafe` use far less
+  compile memory, and the runtime difference is irrelevant here (the board
+  sleeps when idle):
+  ```bash
+  zig build              # debug, lowest memory
+  ```
+- **Increase swap** to 2 GB:
+  ```bash
+  sudo dphys-swapfile swapoff
+  sudo sed -i 's/^CONF_SWAPSIZE=.*/CONF_SWAPSIZE=2048/' /etc/dphys-swapfile
+  # if you set >2048 you must also raise the cap:
+  sudo sed -i 's/^#\?CONF_MAXSWAP=.*/CONF_MAXSWAP=4096/' /etc/dphys-swapfile
+  sudo dphys-swapfile setup
+  sudo dphys-swapfile swapon
+  swapon --show          # verify
+  ```
+  Swap on the SD card causes wear — prefer a USB SSD, or use compressed RAM
+  swap with no card wear: `sudo apt install zram-tools`.
+- **Cross-compile on a faster machine** instead (see below).
+
+#### Cross-compiling from another machine
+Zig cross-compiles its own code trivially, but this project links the **system**
+SDL2/SDL2_ttf and `@cImport`s their headers, so it needs **aarch64** (or armv7)
+SDL headers + `.so` libraries — your build machine's native libraries won't do.
+The clean way is to build against a sysroot copied from the Pi:
+
+1. **On the Pi, make a sysroot and copy it to the build machine:**
+   ```bash
+   mkdir -p ~/pi-sysroot/usr
+   sudo cp -a /usr/include  ~/pi-sysroot/usr/
+   sudo cp -a /usr/lib      ~/pi-sysroot/usr/
+   tar czf pi-sysroot.tar.gz -C ~/pi-sysroot .
+   # on the build machine:
+   #   scp pi@raspberrypi:~/pi-sysroot.tar.gz .
+   #   mkdir pi-sysroot && tar xzf pi-sysroot.tar.gz -C pi-sysroot
+   ```
+
+2. **Build for the Pi's target.** Pick the target for your model/OS:
+   - Pi 4 / 5 / 400, 64-bit OS → `aarch64-linux-gnu`
+   - Pi 3 / Zero 2 on 32-bit OS → `arm-linux-gnueabihf`
+
+   `build.zig` currently hardcodes the Homebrew `/usr/local` include/lib paths,
+   which only suit a native macOS build. To cross-compile you must point it at
+   the sysroot instead (swap those `addIncludePath`/`addLibraryPath` lines for
+   `<sysroot>/usr/include` and `<sysroot>/usr/lib/<triple>`), then:
+   ```bash
+   zig build -Doptimize=ReleaseFast -Dtarget=aarch64-linux-gnu
+   ```
+
+3. **Copy `zig-out/bin/splitflap_board` to the Pi and run it.** Dynamic linking
+   means it uses the Pi's installed SDL2 `.so` at runtime, so it just works as
+   long as `libsdl2-dev`/`libsdl2-ttf` are installed there.
 
 ## Behaviour parity with the Python version
 - Same `FLAPS` alphabet, colours, two-phase fold, and per-card shading.
