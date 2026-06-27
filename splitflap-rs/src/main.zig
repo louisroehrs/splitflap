@@ -35,7 +35,7 @@ const SEAM = [3]u8{ 0, 0, 0 };
 
 // Animation tuning. Frames spent on a single character step (one flap). Lower =
 // faster clatter. At 60 FPS, 6 frames ≈ 100 ms per character.
-const FRAMES_PER_STEP: u32 = 6;
+const FRAMES_PER_STEP: u32 = 18;
 const FPS: u32 = 60;
 
 // Candidate paths for a bold monospace font (Linux/Pi first, then macOS).
@@ -494,7 +494,7 @@ pub fn main(init: std.process.Init) !void {
     const screen_h: u32 = @intCast(sh);
 
     const cell = cellSize(screen_w, screen_h, args.cols, args.rows);
-    const fsize: c_int = @max(@as(c_int, @intFromFloat(@as(f32, @floatFromInt(cell[1])) * 0.62)), 8);
+    const fsize: c_int = @max(@as(c_int, @intFromFloat(@as(f32, @floatFromInt(cell[1])) * 0.90)), 8);
     const font = openFont(fsize);
     defer c.TTF_CloseFont(font);
     c.TTF_SetFontStyle(font, c.TTF_STYLE_BOLD);
