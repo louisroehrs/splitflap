@@ -1,0 +1,36 @@
+# Split-Flap Board — systemd *user* service for auto-starting on a Raspberry Pi.
+#
+# A user service (run via `systemctl --user`) inherits DISPLAY / WAYLAND_DISPLAY
+# from the graphical session, which SDL2 needs. It requires the Pi to auto-login
+# to the desktop. See the "Auto-start on boot" section of the README.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp systemd/splitflap.service ~/.config/systemd/user/
+#   # edit ExecStart below: fix the binary path and the URL
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now splitflap.service
+#
+# Debug:
+#   systemctl --user status splitflap.service
+#   journalctl --user -u splitflap.service -f
+
+[Unit]
+Description=Split-Flap Board
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+# Fix the path (zig-out/bin for the Zig build, target/release for Rust) and URL.
+# Leave off --windowed so it runs fullscreen. Add --cols / --rows / --interval
+# as needed.
+ExecStart=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://example.com/board.txt --cols 32 --rows 6 --interval 60
+Restart=on-failure
+RestartSec=3
+
+# Uncomment if the board starts but the window is blank / "can't open display":
+#Environment=DISPLAY=:0
+#Environment=XAUTHORITY=/home/pi/.Xauthority
+
+[Install]
+WantedBy=graphical-session.target

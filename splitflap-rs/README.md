@@ -205,6 +205,56 @@ zig build -Doptimize=ReleaseFast
 zig build run -- https://example.com/board.txt --windowed
 ```
 
+## Auto-start on boot (Raspberry Pi)
+The board uses SDL2, so it needs a graphical (X/Wayland) session — it can't run
+from a plain headless boot service. You need two things: the Pi must
+**auto-login to the desktop**, and something must launch the board **once that
+session is up**. A systemd *user* service is cleanest, because it inherits
+`DISPLAY` / `WAYLAND_DISPLAY` from the graphical session automatically.
+
+A ready-to-edit unit lives at [`systemd/splitflap.service`](systemd/splitflap.service).
+
+1. **Enable desktop autologin:**
+   - Raspberry Pi OS: `sudo raspi-config` → *System Options* → *Boot / Auto
+     Login* → **Desktop Autologin**.
+   - Ubuntu Desktop: *Settings → System → Users → Automatic Login*.
+
+2. **Install the service** (edit `ExecStart` first — fix the binary path and the
+   URL; use `zig-out/bin/...` for the Zig build or `target/release/...` for Rust):
+   ```bash
+   mkdir -p ~/.config/systemd/user
+   cp systemd/splitflap.service ~/.config/systemd/user/
+   nano ~/.config/systemd/user/splitflap.service   # set ExecStart path + URL
+   systemctl --user daemon-reload
+   systemctl --user enable --now splitflap.service
+   ```
+
+3. **Verify / debug:**
+   ```bash
+   systemctl --user status splitflap.service
+   journalctl --user -u splitflap.service -f
+   ```
+   Then reboot to confirm it comes up on its own.
+
+Gotchas:
+- **Blank window / "can't open display":** uncomment the `Environment=DISPLAY=:0`
+  and `XAUTHORITY=...` lines in the unit file.
+- **Screen goes black after a while:** disable screen blanking (Raspberry Pi OS:
+  `raspi-config` → *Display Options → Screen Blanking → off*).
+- **Don't** use a system service with `WantedBy=multi-user.target` — that starts
+  before any display exists and SDL will fail.
+- **Simpler alternative** — a desktop autostart entry instead of systemd:
+  ```bash
+  mkdir -p ~/.config/autostart
+  cat > ~/.config/autostart/splitflap.desktop <<'EOF'
+  [Desktop Entry]
+  Type=Application
+  Name=Split-Flap Board
+  Exec=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://example.com/board.txt --cols 32 --rows 6 --interval 60
+  X-GNOME-Autostart-enabled=true
+  EOF
+  ```
+
 ## Notes
 - Needs an X/Wayland session (SDL2 opens a window). For a kiosk, launch it from
   the desktop autostart or a systemd user service.
