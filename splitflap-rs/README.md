@@ -219,14 +219,33 @@ A ready-to-edit unit lives at [`systemd/splitflap.service`](systemd/splitflap.se
      Login* → **Desktop Autologin**.
    - Ubuntu Desktop: *Settings → System → Users → Automatic Login*.
 
-2. **Install the service** (edit `ExecStart` first — fix the binary path and the
-   URL; use `zig-out/bin/...` for the Zig build or `target/release/...` for Rust):
+2. **Install the service:**
    ```bash
    mkdir -p ~/.config/systemd/user
    cp systemd/splitflap.service ~/.config/systemd/user/
    nano ~/.config/systemd/user/splitflap.service   # set ExecStart path + URL
    systemctl --user daemon-reload
    systemctl --user enable --now splitflap.service
+   ```
+
+   **Setting `ExecStart`:** there is exactly one `ExecStart=` line, under the
+   `[Service]` header. Edit it *in place* (don't add a second one). Its form is
+   `ExecStart=<absolute binary path> <URL> [options]` — systemd needs a full
+   absolute path (no `~`, no relative paths). Get the exact path by running this
+   from inside your cloned repo on the Pi:
+   ```bash
+   echo "$(pwd)/zig-out/bin/splitflap_board"      # Zig build
+   echo "$(pwd)/target/release/splitflap_board"   # Rust build
+   ```
+   So for user `pi` with the repo in the home dir and a Zig build, the line is:
+   ```ini
+   ExecStart=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://YOUR-URL/board.txt --cols 32 --rows 6 --interval 60
+   ```
+   (Leave off `--windowed` so it runs fullscreen.) If you edit the file after
+   already enabling it, apply the change with:
+   ```bash
+   systemctl --user daemon-reload
+   systemctl --user restart splitflap.service
    ```
 
 3. **Verify / debug:**
@@ -243,17 +262,29 @@ Gotchas:
   `raspi-config` → *Display Options → Screen Blanking → off*).
 - **Don't** use a system service with `WantedBy=multi-user.target` — that starts
   before any display exists and SDL will fail.
-- **Simpler alternative** — a desktop autostart entry instead of systemd:
-  ```bash
-  mkdir -p ~/.config/autostart
-  cat > ~/.config/autostart/splitflap.desktop <<'EOF'
-  [Desktop Entry]
-  Type=Application
-  Name=Split-Flap Board
-  Exec=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://example.com/board.txt --cols 32 --rows 6 --interval 60
-  X-GNOME-Autostart-enabled=true
-  EOF
-  ```
+- **Starts on `restart` but not on power-up?** On Raspberry Pi OS / LXDE the
+  user-level `graphical-session.target` often isn't activated at login, so the
+  systemd unit never triggers at boot even though a manual `restart` works. Use
+  the desktop autostart entry below instead — it's the more reliable path on the
+  Pi.
+
+### Desktop autostart (recommended on the Pi)
+The desktop session reliably runs `~/.config/autostart/*.desktop` entries once a
+display exists. A ready-to-edit entry lives at
+[`autostart/splitflap.desktop`](autostart/splitflap.desktop):
+
+```bash
+# if you set up the systemd unit earlier, disable it first:
+systemctl --user disable --now splitflap.service
+
+mkdir -p ~/.config/autostart
+cp autostart/splitflap.desktop ~/.config/autostart/
+nano ~/.config/autostart/splitflap.desktop   # fix the Exec path + URL
+sudo reboot
+```
+
+Edit the `Exec=` line the same way as `ExecStart` above (absolute binary path +
+your URL).
 
 ## Notes
 - Needs an X/Wayland session (SDL2 opens a window). For a kiosk, launch it from
