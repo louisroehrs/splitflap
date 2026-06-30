@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+local.db
+local.db-*
+*.log
+.vercel
+.open-next/
+.wrangler/
+.dev.vars

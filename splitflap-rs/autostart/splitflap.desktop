@@ -1,0 +1,21 @@
+[Desktop Entry]
+# Split-Flap Board — desktop autostart entry for a Raspberry Pi.
+#
+# The desktop session reliably runs ~/.config/autostart/*.desktop entries once a
+# display exists, which makes this more reliable on Raspberry Pi OS / LXDE than a
+# systemd user service (graphical-session.target often isn't activated there).
+#
+# Install:
+#   mkdir -p ~/.config/autostart
+#   cp autostart/splitflap.desktop ~/.config/autostart/
+#   nano ~/.config/autostart/splitflap.desktop   # fix Exec path + URL below
+#   # if you previously set up the systemd unit, disable it first:
+#   systemctl --user disable --now splitflap.service
+#   reboot
+#
+# Fix the Exec line: absolute binary path + your URL. Use zig-out/bin/... for the
+# Zig build or target/release/... for Rust. Leave off --windowed for fullscreen.
+Type=Application
+Name=Split-Flap Board
+Exec=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://YOUR-URL/board.txt --cols 32 --rows 6 --interval 60
+X-GNOME-Autostart-enabled=true
