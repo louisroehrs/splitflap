@@ -114,6 +114,7 @@ function BoardSettings({ board, onSaved }) {
     timezone: board.timezone || DEFAULT_TIMEZONE,
   });
   const [msg, setMsg] = useState("");
+  const [editing, setEditing] = useState(false);
   async function save() {
     await api(`/api/signboards/${board.id}`, {
       method: "PATCH",
@@ -121,7 +122,19 @@ function BoardSettings({ board, onSaved }) {
     });
     setMsg("Saved");
     setTimeout(() => setMsg(""), 1500);
+    setEditing(false);
     onSaved();
+  }
+  function cancel() {
+    // Discard unsaved edits and re-lock.
+    setF({
+      name: board.name,
+      cols: board.cols,
+      rows: board.rows,
+      gist_filename: board.gist_filename,
+      timezone: board.timezone || DEFAULT_TIMEZONE,
+    });
+    setEditing(false);
   }
   async function remove() {
     if (!confirm(`Delete sign board "${board.name}" and all its messages?`)) return;
@@ -130,29 +143,54 @@ function BoardSettings({ board, onSaved }) {
   }
   return (
     <div className="panel">
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+        <strong>Board settings</strong>
+        <button className="ghost" onClick={() => (editing ? cancel() : setEditing(true))}>
+          {editing ? "🔒 Lock" : "✏️ Edit settings"}
+        </button>
+      </div>
       <div className="row">
         <div className="grow">
           <label>Name</label>
-          <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+          <input
+            value={f.name}
+            disabled={!editing}
+            onChange={(e) => setF({ ...f, name: e.target.value })}
+          />
         </div>
         <div style={{ width: 90 }}>
           <label>Cols</label>
-          <input type="number" value={f.cols} onChange={(e) => setF({ ...f, cols: e.target.value })} />
+          <input
+            type="number"
+            value={f.cols}
+            disabled={!editing}
+            onChange={(e) => setF({ ...f, cols: e.target.value })}
+          />
         </div>
         <div style={{ width: 90 }}>
           <label>Rows</label>
-          <input type="number" value={f.rows} onChange={(e) => setF({ ...f, rows: e.target.value })} />
+          <input
+            type="number"
+            value={f.rows}
+            disabled={!editing}
+            onChange={(e) => setF({ ...f, rows: e.target.value })}
+          />
         </div>
         <div style={{ width: 160 }}>
           <label>Gist filename</label>
           <input
             value={f.gist_filename}
+            disabled={!editing}
             onChange={(e) => setF({ ...f, gist_filename: e.target.value })}
           />
         </div>
         <div style={{ width: 220 }}>
           <label>Time zone (Meetup times)</label>
-          <select value={f.timezone} onChange={(e) => setF({ ...f, timezone: e.target.value })}>
+          <select
+            value={f.timezone}
+            disabled={!editing}
+            onChange={(e) => setF({ ...f, timezone: e.target.value })}
+          >
             {TIMEZONES.map((tz) => (
               <option key={tz.value} value={tz.value}>
                 {tz.label}
@@ -161,13 +199,23 @@ function BoardSettings({ board, onSaved }) {
           </select>
         </div>
       </div>
-      <div className="row" style={{ marginTop: 12 }}>
-        <button onClick={save}>Save board</button>
-        <button className="danger" onClick={remove}>
-          Delete board
-        </button>
-        {msg && <span className="ok small">{msg}</span>}
-      </div>
+      {editing && (
+        <div className="row" style={{ marginTop: 12 }}>
+          <button onClick={save}>Save board</button>
+          <button className="ghost" onClick={cancel}>
+            Cancel
+          </button>
+          <button className="danger" onClick={remove}>
+            Delete board
+          </button>
+          {msg && <span className="ok small">{msg}</span>}
+        </div>
+      )}
+      {!editing && msg && (
+        <div className="ok small" style={{ marginTop: 8 }}>
+          {msg}
+        </div>
+      )}
     </div>
   );
 }

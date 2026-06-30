@@ -61,6 +61,12 @@ input, textarea, select {
 
 textarea { resize: vertical; }
 
+input:disabled, select:disabled, textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
 button {
   background: var(--accent);
   color: #1a1a1a;
