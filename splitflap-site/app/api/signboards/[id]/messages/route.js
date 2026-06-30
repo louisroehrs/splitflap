@@ -5,11 +5,13 @@ import { getSignboard, listMessages, createMessage } from "../../../../../lib/st
 export const dynamic = "force-dynamic";
 
 export const GET = guard(async (_req, { params }) => {
-  return NextResponse.json({ messages: await listMessages(Number(params.id)) });
+  const { id } = await params;
+  return NextResponse.json({ messages: await listMessages(Number(id)) });
 });
 
 export const POST = guard(async (req, { params }) => {
-  const id = Number(params.id);
+  const { id: pid } = await params;
+  const id = Number(pid);
   const board = await getSignboard(id);
   if (!board) return NextResponse.json({ error: "not found" }, { status: 404 });
   const body = await req.json();

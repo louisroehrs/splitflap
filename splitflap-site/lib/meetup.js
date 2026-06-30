@@ -40,6 +40,22 @@ export async function fetchMeetupEvents(urlname, first = 20) {
   return edges.map((e) => e.node);
 }
 
+// The board can only display these flap characters (see splitflap_board.py).
+// Uppercase first (the flaps are uppercase), then drop anything the board can't
+// show — so "💥3D Printing💥" becomes "3D PRINTING".
+const FLAPS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:'!?-/|\\_^@$&()#%+*=°";
+const FLAP_SET = new Set(FLAPS);
+
+export function sanitize(text) {
+  return String(text)
+    .toUpperCase()
+    .split("")
+    .filter((ch) => FLAP_SET.has(ch))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function fmtDate(iso) {
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()}`;
@@ -75,7 +91,7 @@ export function renderEventTable(events, { cols = 32, maxRows = 5 } = {}) {
 
   for (const ev of events.slice(0, maxRows)) {
     lines.push(
-      pad(ev.title, nameW) +
+      pad(sanitize(ev.title), nameW) +
         " " +
         pad(fmtDate(ev.dateTime), dateW) +
         " " +

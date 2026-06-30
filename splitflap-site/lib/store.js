@@ -106,20 +106,12 @@ export async function deleteMessage(id) {
 }
 
 // Persist a new explicit ordering (array of message ids in display order).
+// D1 has no interactive transactions — batch() applies the updates atomically.
 export async function reorderMessages(signboardId, orderedIds) {
   await ready();
-  const c = db();
-  const tx = await c.transaction("write");
-  try {
-    for (let i = 0; i < orderedIds.length; i++) {
-      await tx.execute({
-        sql: "UPDATE messages SET sort_order = ? WHERE id = ? AND signboard_id = ?",
-        args: [i, orderedIds[i], signboardId],
-      });
-    }
-    await tx.commit();
-  } catch (e) {
-    await tx.rollback();
-    throw e;
-  }
+  const conn = db().raw;
+  const stmt = conn.prepare(
+    "UPDATE messages SET sort_order = ? WHERE id = ? AND signboard_id = ?"
+  );
+  await conn.batch(orderedIds.map((id, i) => stmt.bind(i, id, signboardId)));
 }

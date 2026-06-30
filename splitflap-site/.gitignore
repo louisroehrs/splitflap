@@ -7,3 +7,6 @@ local.db
 local.db-*
 *.log
 .vercel
+.open-next/
+.wrangler/
+.dev.vars

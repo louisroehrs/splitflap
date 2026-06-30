@@ -296,13 +296,14 @@ function MessageEditor({ m, board, onClose, onSaved }) {
       {f.kind === "text" ? (
         <div className="field" style={{ marginTop: 12 }}>
           <label>
-            Message text ({f.cols} cols × {f.rows} rows — extra is clipped)
+            Message text ({f.cols} cols × {f.rows} rows — anything past the red
+            edge / line is clipped)
           </label>
-          <textarea
-            rows={Number(f.rows) + 1}
-            style={{ fontFamily: "ui-monospace, monospace" }}
+          <GridTextarea
             value={f.content}
-            onChange={(e) => setF({ ...f, content: e.target.value })}
+            onChange={(v) => setF({ ...f, content: v })}
+            cols={Math.max(1, Number(f.cols) || 1)}
+            rows={Math.max(1, Number(f.rows) || 1)}
           />
         </div>
       ) : (
@@ -393,6 +394,86 @@ function AddMessage({ board, onAdded }) {
       <button className="ghost" onClick={() => add("meetup")} disabled={busy}>
         + Meetup events card
       </button>
+    </div>
+  );
+}
+
+// A monospace textarea wrapped in a column ruler (top) and row numbers (left),
+// sized so the right edge is exactly `cols` characters and a red line marks the
+// last on-board row. Everything past those bounds is what render.js clips.
+function GridTextarea({ value, onChange, cols, rows }) {
+  const LH = 20; // px per line — shared by ruler, gutter, and textarea
+  const RULER_H = 2 * LH; // tens + units rows
+  const extra = 3; // editable lines shown beyond the board height
+  const total = rows + extra;
+
+  const tens = Array.from({ length: cols }, (_, i) =>
+    (i + 1) % 10 === 0 ? String(Math.floor((i + 1) / 10) % 10) : "·"
+  ).join("");
+  const units = Array.from({ length: cols }, (_, i) => String((i + 1) % 10)).join("");
+
+  const mono = { fontFamily: "ui-monospace, Menlo, Consolas, monospace", fontSize: 14 };
+
+  return (
+    <div style={{ display: "flex", ...mono, overflowX: "auto" }}>
+      {/* left gutter: row numbers */}
+      <div style={{ flex: "0 0 auto", textAlign: "right", paddingRight: 8, userSelect: "none" }}>
+        <div style={{ height: RULER_H }} />
+        {Array.from({ length: total }, (_, i) => (
+          <div
+            key={i}
+            style={{
+              height: LH,
+              lineHeight: `${LH}px`,
+              color: i < rows ? "var(--muted)" : "var(--danger)",
+              fontSize: 12,
+            }}
+          >
+            {i + 1}
+          </div>
+        ))}
+      </div>
+
+      {/* ruler + textarea */}
+      <div style={{ position: "relative", flex: "0 0 auto" }}>
+        <div style={{ color: "var(--muted)", whiteSpace: "pre" }}>
+          <div style={{ height: LH, lineHeight: `${LH}px` }}>{tens}</div>
+          <div style={{ height: LH, lineHeight: `${LH}px` }}>{units}</div>
+        </div>
+        <textarea
+          wrap="off"
+          spellCheck={false}
+          rows={total}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            ...mono,
+            display: "block",
+            width: `${cols}ch`,
+            lineHeight: `${LH}px`,
+            padding: 0,
+            margin: 0,
+            border: "1px solid var(--line)",
+            borderRadius: 0,
+            background: "#000",
+            color: "#f2f2f2",
+            whiteSpace: "pre",
+            overflow: "hidden",
+            resize: "none",
+          }}
+        />
+        {/* red line marking the last on-board row (rows*LH below textarea top) */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            width: `${cols}ch`,
+            top: RULER_H + rows * LH + 1,
+            borderTop: "1px dashed var(--danger)",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -1,19 +1,30 @@
-import { createClient } from "@libsql/client";
+import { cfEnv } from "./env.js";
 
-// A single libSQL client shared across the (warm) serverless instance.
-// Local dev uses a file: URL; production points at Turso (hosted SQLite).
-let _client = null;
+// Data layer backed by Cloudflare D1. We expose a tiny libSQL-compatible shim
+// (`execute({sql, args})` returning `{ rows, lastInsertRowid }`) so the rest of
+// the app — lib/store.js in particular — stays unchanged across the port.
+
+function d1() {
+  const db = cfEnv("DB");
+  if (!db) throw new Error("D1 binding 'DB' not available. Check wrangler.jsonc / context.");
+  return db;
+}
+
 let _ready = null;
 
 export function db() {
-  if (!_client) {
-    const url = process.env.DATABASE_URL || "file:local.db";
-    _client = createClient({
-      url,
-      authToken: process.env.DATABASE_AUTH_TOKEN || undefined,
-    });
-  }
-  return _client;
+  const conn = d1();
+  return {
+    async execute(stmt) {
+      // Accept both execute("SQL") and execute({ sql, args }).
+      const sql = typeof stmt === "string" ? stmt : stmt.sql;
+      const args = typeof stmt === "string" ? [] : stmt.args || [];
+      const r = await conn.prepare(sql).bind(...args).all();
+      return { rows: r.results || [], lastInsertRowid: r.meta?.last_row_id };
+    },
+    // Expose the raw D1 handle for batch() (used by reorderMessages).
+    raw: conn,
+  };
 }
 
 const SCHEMA = [
@@ -35,25 +46,26 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS messages (
      id           INTEGER PRIMARY KEY AUTOINCREMENT,
      signboard_id INTEGER NOT NULL REFERENCES signboards(id) ON DELETE CASCADE,
-     kind         TEXT NOT NULL DEFAULT 'text',   -- 'text' | 'meetup'
+     kind         TEXT NOT NULL DEFAULT 'text',
      title        TEXT NOT NULL DEFAULT '',
      content      TEXT NOT NULL DEFAULT '',
      rows         INTEGER NOT NULL DEFAULT 6,
      cols         INTEGER NOT NULL DEFAULT 32,
      visible      INTEGER NOT NULL DEFAULT 1,
-     duration     INTEGER NOT NULL DEFAULT 60,    -- seconds of display
+     duration     INTEGER NOT NULL DEFAULT 60,
      sort_order   INTEGER NOT NULL DEFAULT 0,
-     config       TEXT NOT NULL DEFAULT '{}',     -- JSON: meetup urlname/header/footer/event_rows
+     config       TEXT NOT NULL DEFAULT '{}',
      created_at   INTEGER NOT NULL
    )`,
 ];
 
-// Run migrations once per warm instance.
+// Safety net: ensure tables exist once per warm isolate. The canonical schema
+// lives in migrations/0001_init.sql (applied via `wrangler d1 migrations apply`).
 export async function ready() {
   if (!_ready) {
     _ready = (async () => {
-      const c = db();
-      for (const stmt of SCHEMA) await c.execute(stmt);
+      const conn = d1();
+      await conn.batch(SCHEMA.map((sql) => conn.prepare(sql)));
     })();
   }
   return _ready;

@@ -1,0 +1,8 @@
+# Local-only secrets for `npm run dev` / `npm run cf:dev`.
+# Copy to `.dev.vars` (gitignored). In production these are set with
+#   wrangler secret put APP_PASSWORD
+#   wrangler secret put CRON_SECRET
+# Leave them empty to keep the UI open and cron endpoints unprotected locally.
+
+APP_PASSWORD=
+CRON_SECRET=
