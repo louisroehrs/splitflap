@@ -107,33 +107,96 @@ curl "localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"   # needs --test-
 
 ## 4. Deploy to Cloudflare (free)
 
+All commands run from the `splitflap-site/` directory. `wrangler` is installed
+locally, so prefix with `npx` (or `npm exec --`) if it isn't on your PATH.
+
+### 4a. Log in
+
 ```bash
-npx wrangler login
+npx wrangler login          # opens a browser to authorize the CLI
+npx wrangler whoami         # confirms the account it will deploy to
+```
 
-# 1. Create the D1 database and paste the printed database_id into wrangler.jsonc
-wrangler d1 create splitflap
+### 4b. Create the D1 database
 
-# 2. Create the tables in the remote DB
-wrangler d1 migrations apply splitflap --remote
+```bash
+npx wrangler d1 create splitflap
+```
 
-# 3. Set secrets and the public origin
-wrangler secret put APP_PASSWORD
-wrangler secret put CRON_SECRET
-#   edit wrangler.jsonc → vars.SITE_URL = your https://…workers.dev URL
+This prints a `database_id`. Open **`wrangler.jsonc`** and paste it into the
+`d1_databases[0].database_id` field (replacing the local placeholder):
 
-# 4. Build (OpenNext) + deploy
+```jsonc
+"d1_databases": [
+  { "binding": "DB", "database_name": "splitflap",
+    "database_id": "PASTE-THE-ID-HERE", "migrations_dir": "migrations" }
+]
+```
+
+### 4c. Create the tables in the remote database
+
+```bash
+npx wrangler d1 migrations apply splitflap --remote
+```
+
+### 4d. Set the app secrets
+
+```bash
+npx wrangler secret put APP_PASSWORD     # paste a login password when prompted
+npx wrangler secret put CRON_SECRET      # paste output of: openssl rand -hex 32
+```
+
+### 4e. First deploy
+
+```bash
+npm run cf:deploy        # = opennextjs-cloudflare build && opennextjs-cloudflare deploy
+```
+
+Wrangler prints the live URL, e.g. `https://splitflap.<your-account>.workers.dev`.
+
+### 4f. Set `SITE_URL`, then redeploy
+
+The scheduled (cron) handler calls the app's own public URL, which you only
+learn after the first deploy. Put that URL into **`wrangler.jsonc`**:
+
+```jsonc
+"vars": { "SITE_URL": "https://splitflap.<your-account>.workers.dev" }
+```
+
+Then redeploy so the cron handler knows where to call:
+
+```bash
 npm run cf:deploy
 ```
 
-The `triggers.crons` in `wrangler.jsonc` register the schedules automatically:
+### 4g. Done
+
+The `triggers.crons` in `wrangler.jsonc` are registered automatically on deploy:
 
 - `* * * * *` — every minute → `/api/cron/rotate`
 - `0 * * * *` — hourly → also `/api/cron/scrape`
 
-Open the deployed URL, log in, paste your GitHub token, create boards, and the
-minute Cron Trigger advances rotation on its own. D1's free tier (5 GB, generous
-daily reads/writes) is far more than this app needs, and Cron Triggers give
-**true per-minute** rotation — no rounding.
+Open the URL, log in with `APP_PASSWORD`, paste your **GitHub token**, create a
+sign board pointing at a gist, add messages, and the minute Cron Trigger advances
+the rotation on its own. D1's free tier (5 GB, generous daily reads/writes) is
+far more than this app needs, and Cron Triggers give **true per-minute** rotation
+— no rounding.
+
+### Updating, logs, and verifying
+
+```bash
+npm run cf:deploy                 # ship a new version after code changes
+npx wrangler tail                 # live-stream Worker logs (incl. cron runs)
+npx wrangler d1 execute splitflap --remote \
+  --command "SELECT id, name FROM signboards"   # peek at the prod DB
+```
+
+To force a rotation without waiting for the minute tick, hit the endpoint with
+your secret (or click **Advance now** in the UI):
+
+```bash
+curl "https://splitflap.<acct>.workers.dev/api/cron/rotate?secret=$CRON_SECRET"
+```
 
 ## Alternative: Vercel + Turso (libSQL)
 

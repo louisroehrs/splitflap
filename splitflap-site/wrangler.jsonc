@@ -1,39 +1,45 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "splitflap",
-  // Custom entry that wraps the OpenNext-generated worker and adds the
-  // scheduled() handler for Cron Triggers (see worker.ts).
-  "main": "worker.ts",
-  "compatibility_date": "2024-12-30",
-  "compatibility_flags": ["nodejs_compat"],
-
-  // Static assets produced by `opennextjs-cloudflare build`.
-  "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
-
-  // D1 database binding. Create with `wrangler d1 create splitflap` and paste
-  // the returned database_id here.
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "splitflap",
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ],
-
-  // Rotation tick (every minute) + Meetup refresh (top of every hour).
-  "triggers": {
-    "crons": ["* * * * *", "0 * * * *"]
-  },
-
-  // Non-secret vars. APP_PASSWORD and CRON_SECRET should be set as secrets:
-  //   wrangler secret put APP_PASSWORD
-  //   wrangler secret put CRON_SECRET
-  // SITE_URL is the public origin the scheduled handler calls back into.
-  "vars": {
-    "SITE_URL": "https://splitflap.workers.dev"
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "splitflap",
+	// Custom entry that wraps the OpenNext-generated worker and adds the
+	// scheduled() handler for Cron Triggers (see worker.ts).
+	"main": "worker.ts",
+	"compatibility_date": "2024-12-30",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// Static assets produced by `opennextjs-cloudflare build`.
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	// D1 database binding. Create with `wrangler d1 create splitflap` and paste
+	// the returned database_id here.
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "splitflap",
+			"database_id": "41b8bc2c-51d0-4d3d-9d00-4bb68c449d42",
+			"migrations_dir": "migrations"
+		},
+		{
+			"binding": "splitflap",
+			"database_name": "splitflap",
+			"database_id": "41b8bc2c-51d0-4d3d-9d00-4bb68c449d42"
+		}
+	],
+	// Rotation tick (every minute) + Meetup refresh (top of every hour).
+	"triggers": {
+		"crons": [
+			"* * * * *",
+			"0 * * * *"
+		]
+	},
+	// Non-secret vars. APP_PASSWORD and CRON_SECRET should be set as secrets:
+	//   wrangler secret put APP_PASSWORD
+	//   wrangler secret put CRON_SECRET
+	// SITE_URL is the public origin the scheduled handler calls back into.
+	"vars": {
+		"SITE_URL": "https://splitflap.lroehrs.workers.dev"
+	}
 }
