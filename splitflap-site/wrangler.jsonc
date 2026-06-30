@@ -40,6 +40,6 @@
 	//   wrangler secret put CRON_SECRET
 	// SITE_URL is the public origin the scheduled handler calls back into.
 	"vars": {
-		"SITE_URL": "https://splitflap.lroehrs.workers.dev"
+		"SITE_URL": "https://splitflap.lroehrs.workers.dev/api/cron/rotate?secret=$CRON_SECRET"
 	}
 }

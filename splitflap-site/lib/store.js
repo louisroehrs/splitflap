@@ -15,19 +15,27 @@ export async function getSignboard(id) {
   return r.rows[0] || null;
 }
 
-export async function createSignboard({ name, gist_id, gist_filename, rows, cols }) {
+export async function createSignboard({ name, gist_id, gist_filename, rows, cols, timezone }) {
   await ready();
   const r = await db().execute({
-    sql: `INSERT INTO signboards (name, gist_id, gist_filename, rows, cols, created_at)
-          VALUES (?, ?, ?, ?, ?, ?)`,
-    args: [name, gist_id || null, gist_filename || "sign.txt", rows || 6, cols || 32, Date.now()],
+    sql: `INSERT INTO signboards (name, gist_id, gist_filename, rows, cols, timezone, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    args: [
+      name,
+      gist_id || null,
+      gist_filename || "sign.txt",
+      rows || 6,
+      cols || 32,
+      timezone || "America/Los_Angeles",
+      Date.now(),
+    ],
   });
   return getSignboard(Number(r.lastInsertRowid));
 }
 
 export async function updateSignboard(id, fields) {
   await ready();
-  const allowed = ["name", "gist_id", "gist_filename", "rows", "cols", "active_message_id", "rotation_started_at"];
+  const allowed = ["name", "gist_id", "gist_filename", "rows", "cols", "timezone", "active_message_id", "rotation_started_at"];
   const keys = Object.keys(fields).filter((k) => allowed.includes(k));
   if (!keys.length) return getSignboard(id);
   const set = keys.map((k) => `${k} = ?`).join(", ");

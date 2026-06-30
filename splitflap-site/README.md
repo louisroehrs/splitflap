@@ -218,7 +218,10 @@ recommended free path precisely because of that cron limit.)
   `rows` total.
 - **meetup** — `header` + a generated event table + `footer`, all clipped to the
   board geometry. Event titles are uppercased and filtered to the board's flap
-  alphabet (emoji/accents removed).
+  alphabet (emoji/accents removed). Event dates/times are converted to the sign
+  board's configured **time zone** (Meetup returns an absolute instant; the table
+  renders it in that IANA zone). Set the zone in the board settings — important
+  because the server runs in UTC, so without it times would display in UTC.
 
 ## Project layout
 

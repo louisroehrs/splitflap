@@ -14,7 +14,9 @@ export async function GET(req) {
   for (const board of boards) {
     try {
       results.push(await rotateSignboard(board));
+      console.log("rotating " + JSON.stringify(board));
     } catch (e) {
+      console.log("rotating " + JSON.stringify(board) + " crapped out");
       results.push({ board: board.id, status: "error", error: String(e.message || e) });
     }
   }

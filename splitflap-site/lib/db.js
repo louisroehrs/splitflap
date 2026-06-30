@@ -39,6 +39,7 @@ const SCHEMA = [
      gist_filename       TEXT NOT NULL DEFAULT 'sign.txt',
      rows                INTEGER NOT NULL DEFAULT 6,
      cols                INTEGER NOT NULL DEFAULT 32,
+     timezone            TEXT NOT NULL DEFAULT 'America/Los_Angeles',
      active_message_id   INTEGER,
      rotation_started_at INTEGER,
      created_at          INTEGER NOT NULL

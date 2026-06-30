@@ -24,7 +24,11 @@ export async function renderMessage(message, board) {
     let table;
     try {
       const events = await fetchMeetupEvents(urlname, Math.max(eventRows + 5, 20));
-      table = renderEventTable(events, { cols, maxRows: eventRows });
+      table = renderEventTable(events, {
+        cols,
+        maxRows: eventRows,
+        timeZone: board.timezone,
+      });
     } catch (e) {
       table = ["MEETUP FETCH ERROR", String(e.message).slice(0, cols)];
     }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "./_lib/api.js";
+import { TIMEZONES, DEFAULT_TIMEZONE } from "./_lib/timezones.js";
 
 export default function Dashboard() {
   const [authed, setAuthed] = useState(true);
@@ -142,7 +143,7 @@ function TokenPanel({ settings, onSaved }) {
 
 function NewBoard({ onCreated }) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ name: "", cols: 32, rows: 6 });
+  const [form, setForm] = useState({ name: "", cols: 32, rows: 6, timezone: DEFAULT_TIMEZONE });
   const [gists, setGists] = useState(null);
   const [gistId, setGistId] = useState("");
   const [filename, setFilename] = useState("sign.txt");
@@ -169,10 +170,11 @@ function NewBoard({ onCreated }) {
           rows: Number(form.rows),
           gist_id: gistId || null,
           gist_filename: filename,
+          timezone: form.timezone,
         },
       });
       setOpen(false);
-      setForm({ name: "", cols: 32, rows: 6 });
+      setForm({ name: "", cols: 32, rows: 6, timezone: DEFAULT_TIMEZONE });
       setGistId("");
       onCreated();
     } catch (e) {
@@ -226,6 +228,19 @@ function NewBoard({ onCreated }) {
       <div className="field">
         <label>Filename within gist</label>
         <input value={filename} onChange={(e) => setFilename(e.target.value)} />
+      </div>
+      <div className="field">
+        <label>Time zone (used for Meetup event times)</label>
+        <select
+          value={form.timezone}
+          onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+        >
+          {TIMEZONES.map((tz) => (
+            <option key={tz.value} value={tz.value}>
+              {tz.label}
+            </option>
+          ))}
+        </select>
       </div>
       {err && <div className="error">{err}</div>}
       <div className="row">

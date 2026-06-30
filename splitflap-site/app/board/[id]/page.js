@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api } from "../../_lib/api.js";
+import { TIMEZONES, DEFAULT_TIMEZONE } from "../../_lib/timezones.js";
 
 export default function BoardPage() {
   const { id } = useParams();
@@ -110,6 +111,7 @@ function BoardSettings({ board, onSaved }) {
     cols: board.cols,
     rows: board.rows,
     gist_filename: board.gist_filename,
+    timezone: board.timezone || DEFAULT_TIMEZONE,
   });
   const [msg, setMsg] = useState("");
   async function save() {
@@ -147,6 +149,16 @@ function BoardSettings({ board, onSaved }) {
             value={f.gist_filename}
             onChange={(e) => setF({ ...f, gist_filename: e.target.value })}
           />
+        </div>
+        <div style={{ width: 220 }}>
+          <label>Time zone (Meetup times)</label>
+          <select value={f.timezone} onChange={(e) => setF({ ...f, timezone: e.target.value })}>
+            {TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
       <div className="row" style={{ marginTop: 12 }}>

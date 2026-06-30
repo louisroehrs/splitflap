@@ -56,18 +56,25 @@ export function sanitize(text) {
     .trim();
 }
 
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-function fmtTime(iso) {
-  const d = new Date(iso);
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? "pm" : "am";
-  h = h % 12 || 12;
-  return `${h}:${String(m).padStart(2, "0")}${ampm}`;
+// Build date/time formatters bound to a board's IANA time zone (e.g.
+// "America/Los_Angeles"). Meetup's dateTime carries its own UTC offset, so the
+// instant is absolute; we just render it in the board's local zone. Falls back
+// to the runtime zone if `tz` is invalid.
+function makeFormatters(tz) {
+  const opts = (extra) => {
+    try {
+      return new Intl.DateTimeFormat("en-US", { timeZone: tz, ...extra });
+    } catch {
+      return new Intl.DateTimeFormat("en-US", extra); // bad tz -> runtime default
+    }
+  };
+  const dateF = opts({ month: "numeric", day: "numeric" });
+  const timeF = opts({ hour: "numeric", minute: "2-digit", hour12: true });
+  return {
+    date: (iso) => dateF.format(new Date(iso)), // "6/29"
+    // "6:30 PM" -> "6:30pm"
+    time: (iso) => timeF.format(new Date(iso)).replace(/\s/g, "").toLowerCase(),
+  };
 }
 
 // Build the split-flap event table:
@@ -78,11 +85,13 @@ function fmtTime(iso) {
 //
 // Column widths are derived from the board width (cols). The event-name column
 // flexes to fill whatever is left after the fixed date (5) and time (7) columns.
-export function renderEventTable(events, { cols = 32, maxRows = 5 } = {}) {
+// Times/dates render in `timeZone` (the sign board's configured zone).
+export function renderEventTable(events, { cols = 32, maxRows = 5, timeZone } = {}) {
   const dateW = 5;
   const timeW = 7;
   const gap = 1;
   const nameW = Math.max(6, cols - dateW - timeW - gap * 2);
+  const fmt = makeFormatters(timeZone);
 
   const pad = (s, w) => String(s).slice(0, w).padEnd(w);
   const lines = [];
@@ -93,9 +102,9 @@ export function renderEventTable(events, { cols = 32, maxRows = 5 } = {}) {
     lines.push(
       pad(sanitize(ev.title), nameW) +
         " " +
-        pad(fmtDate(ev.dateTime), dateW) +
+        pad(fmt.date(ev.dateTime), dateW) +
         " " +
-        pad(fmtTime(ev.dateTime), timeW)
+        pad(fmt.time(ev.dateTime), timeW)
     );
   }
   return lines;
