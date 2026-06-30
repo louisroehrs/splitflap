@@ -35,11 +35,16 @@
 			"0 * * * *"
 		]
 	},
-	// Non-secret vars. APP_PASSWORD and CRON_SECRET should be set as secrets:
+	// Service binding to THIS Worker. The scheduled() handler uses env.SELF.fetch
+	// to call our own /api/cron/* routes — delivered straight into our fetch
+	// handler, no DNS/loopback, so no SITE_URL is needed.
+	"services": [
+		{
+			"binding": "SELF",
+			"service": "splitflap"
+		}
+	]
+	// APP_PASSWORD and CRON_SECRET are set as secrets, not vars:
 	//   wrangler secret put APP_PASSWORD
 	//   wrangler secret put CRON_SECRET
-	// SITE_URL is the public origin the scheduled handler calls back into.
-	"vars": {
-		"SITE_URL": "https://splitflap.lroehrs.workers.dev/api/cron/rotate?secret=$CRON_SECRET"
-	}
 }

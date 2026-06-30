@@ -69,8 +69,8 @@ connection string. The two app secrets are:
 | `APP_PASSWORD` | prod (recommended) | Shared login password for the UI. Empty = open (fine for local dev).    |
 | `CRON_SECRET`  | prod (recommended) | Shared secret protecting the cron endpoints. `openssl rand -hex 32`.    |
 
-Plus one var, `SITE_URL` (in `wrangler.jsonc` `vars`), the public origin the
-scheduled handler calls back into (e.g. `https://splitflap.<acct>.workers.dev`).
+The cron handler reaches the app through a `SELF` **service binding** (defined in
+`wrangler.jsonc`), so no `SITE_URL` or public origin is needed.
 
 When `APP_PASSWORD` / `CRON_SECRET` are empty the UI is open and the cron
 endpoints need no secret — convenient for local development.
@@ -154,27 +154,16 @@ npm run cf:deploy        # = opennextjs-cloudflare build && opennextjs-cloudflar
 
 Wrangler prints the live URL, e.g. `https://splitflap.<your-account>.workers.dev`.
 
-### 4f. Set `SITE_URL`, then redeploy
-
-The scheduled (cron) handler calls the app's own public URL, which you only
-learn after the first deploy. Put that URL into **`wrangler.jsonc`**:
-
-```jsonc
-"vars": { "SITE_URL": "https://splitflap.<your-account>.workers.dev" }
-```
-
-Then redeploy so the cron handler knows where to call:
-
-```bash
-npm run cf:deploy
-```
-
-### 4g. Done
+### 4f. Done
 
 The `triggers.crons` in `wrangler.jsonc` are registered automatically on deploy:
 
 - `* * * * *` — every minute → `/api/cron/rotate`
 - `0 * * * *` — hourly → also `/api/cron/scrape`
+
+The scheduled handler reaches these routes through the `SELF` service binding
+(no public URL needed). Watch it run with `npx wrangler tail` — you should see
+`CRON fired: * * * * *` and `rotate -> 200 …` each minute.
 
 Open the URL, log in with `APP_PASSWORD`, paste your **GitHub token**, create a
 sign board pointing at a gist, add messages, and the minute Cron Trigger advances
@@ -256,5 +245,8 @@ splitflap-site/
   message, then click **Advance now**. Check the token still has `gist` scope.
 - **Meetup card shows "FETCH ERROR"** — verify the `urlname` matches
   `meetup.com/<urlname>` exactly; the group must be public.
-- **Cron never fires** — confirm `SITE_URL` in `wrangler.jsonc` is your real
-  public origin (the scheduled handler fetches it) and `triggers.crons` is set.
+- **Cron never fires** — run `npx wrangler tail` and check for `CRON fired` each
+  minute. No log → `triggers.crons` didn't register (redeploy). Logs but
+  `rotate -> 403` → `CRON_SECRET` mismatch. Logs but no advance → check the
+  per-board status in the `rotate -> 200 {…}` body (e.g. `"holding"`, `"no gist
+  configured"`). The `SELF` service binding must be present in `wrangler.jsonc`.
