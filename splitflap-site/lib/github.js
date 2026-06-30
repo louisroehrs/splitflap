@@ -13,6 +13,9 @@ function headers(t) {
     Authorization: `Bearer ${t}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
+    // GitHub's REST API rejects requests with no User-Agent (403). Cloudflare
+    // Workers' fetch sends none by default, so we must set one explicitly.
+    "User-Agent": "splitflap-controller",
   };
 }
 
@@ -55,7 +58,12 @@ export async function pushToGist(gistId, filename, content) {
 // Validate a token by hitting /user. Returns the login or throws.
 export async function whoAmI(rawToken) {
   const res = await fetch(`${API}/user`, { headers: headers(rawToken) });
-  if (!res.ok) throw new Error(`Invalid token (${res.status})`);
+  if (!res.ok) {
+    const body = (await res.text()).slice(0, 200);
+    const err = new Error(`Invalid token (${res.status}): ${body}`);
+    err.status = res.status;
+    throw err;
+  }
   const u = await res.json();
   return u.login;
 }

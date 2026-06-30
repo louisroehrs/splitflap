@@ -23,7 +23,13 @@ export const GET = guard(async () => {
 export const POST = guard(async (req) => {
   const { token } = await req.json();
   if (!token) return NextResponse.json({ error: "token required" }, { status: 400 });
-  const login = await whoAmI(token); // validates; throws on bad token
+  let login;
+  try {
+    login = await whoAmI(token); // validates; throws on bad token
+  } catch (e) {
+    // Token problems are the client's, not a server error — surface as 4xx.
+    return NextResponse.json({ error: String(e.message || e) }, { status: 400 });
+  }
   await setSetting("github_token", token);
   return NextResponse.json({ ok: true, login });
 });
