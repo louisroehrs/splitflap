@@ -24,7 +24,7 @@ const c = @cImport({
 
 // The alphabet the flaps cycle through. Order matters: the flip animation rolls
 // forward through this sequence, just like the physical drum does.
-const FLAPS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:'!?-/|\_^@$&()#%+*=°";
+const FLAPS = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:\"`'!?-/|\\_^@$&()#%+*=°";
 
 // Colours tuned to look like a Solari board (r, g, b).
 const BG = [3]u8{ 0, 0, 0 };
