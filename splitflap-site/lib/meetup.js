@@ -1,13 +1,15 @@
 // Ported from hackerdojo.app/api/events.js — fetch upcoming events from the
 // Meetup GraphQL endpoint for a given group urlname.
 export async function fetchMeetupEvents(urlname, first = 20) {
-  // Meetup's public GraphQL endpoint is now /gql2; upcoming events come from
-  // Group.events(status: ACTIVE), which returns only future/active events
-  // sorted ascending by start time.
+  // Meetup's public GraphQL endpoint is now /gql2. We fetch upcoming events via
+  // filter.afterDateTime (rather than status: ACTIVE) so that *cancelled*
+  // upcoming events are still returned — we read each node's `status` to mark
+  // them. Sorted ascending by start time.
+  const now = new Date().toISOString();
   const query = `
     query {
       groupByUrlname(urlname: "${urlname}") {
-        events(first: ${first}, status: ACTIVE, sort: ASC) {
+        events(first: ${first}, sort: ASC, filter: { afterDateTime: "${now}" }) {
           edges {
             node {
               id
@@ -15,6 +17,7 @@ export async function fetchMeetupEvents(urlname, first = 20) {
               dateTime
               endTime
               eventUrl
+              status
               venue { name }
             }
           }
@@ -72,8 +75,14 @@ function makeFormatters(tz) {
   const timeF = opts({ hour: "numeric", minute: "2-digit", hour12: true });
   return {
     date: (iso) => dateF.format(new Date(iso)), // "6/29"
-    // "6:30 PM" -> "6:30pm"
-    time: (iso) => timeF.format(new Date(iso)).replace(/\s/g, "").toLowerCase(),
+    // "6:30 PM" -> " 6:30pm". A single-digit hour gets a leading space so the
+    // minutes and am/pm line up with two-digit-hour rows (e.g. "10:00pm").
+    time: (iso) =>
+      timeF
+        .format(new Date(iso))
+        .replace(/\s/g, "")
+        .toLowerCase()
+        .replace(/^(\d):/, " $1:"),
   };
 }
 
@@ -99,13 +108,13 @@ export function renderEventTable(events, { cols = 32, maxRows = 5, timeZone } = 
   lines.push("-".repeat(nameW) + " " + "-".repeat(dateW) + " " + "-".repeat(timeW));
 
   for (const ev of events.slice(0, maxRows)) {
-    lines.push(
-      pad(sanitize(ev.title), nameW) +
-        " " +
-        pad(fmt.date(ev.dateTime), dateW) +
-        " " +
-        pad(fmt.time(ev.dateTime), timeW)
-    );
+    const name = pad(sanitize(ev.title), nameW);
+    // A cancelled event replaces both the date and time columns with "cancelled".
+    if (/CANCEL/i.test(ev.status || "")) {
+      lines.push(name + " " + pad("cancelled", dateW + gap + timeW));
+    } else {
+      lines.push(name + " " + pad(fmt.date(ev.dateTime), dateW) + " " + pad(fmt.time(ev.dateTime), timeW));
+    }
   }
   return lines;
 }

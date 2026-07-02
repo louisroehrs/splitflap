@@ -212,6 +212,26 @@ recommended free path precisely because of that cron limit.)
   renders it in that IANA zone). Set the zone in the board settings — important
   because the server runs in UTC, so without it times would display in UTC.
 
+## Board client endpoint
+
+The physical board can poll the app directly instead of a gist:
+
+```
+GET /api/signboards/<id>/active   ->   text/plain, one line per board row
+```
+
+It's **public** (no auth — the board has no credentials) and returns the active
+message rendered to the board's geometry. Because the cron rotation advances
+`active_message_id`, polling this reflects rotation automatically. Point
+`splitflap_board.py` at it, e.g.:
+
+```bash
+python3 splitflap_board.py https://splitflap.<acct>.workers.dev/api/signboards/1/active \
+  --cols 32 --rows 6 --interval 60
+```
+
+(The gist path still works too — the cron pushes there as well.)
+
 ## Project layout
 
 ```
