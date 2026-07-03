@@ -53,7 +53,7 @@ SEAM = (0, 0, 0)
 
 # Animation tuning. Frames spent on a single character step (one flap). Lower =
 # faster clatter. At 60 FPS, 6 frames ≈ 100 ms per character.
-FRAMES_PER_STEP = 6
+FRAMES_PER_STEP = 18
 FPS = 60
 
 # macOS monospace fonts, in order of preference. SysFont falls back to the
@@ -78,6 +78,16 @@ def normalize(ch: str) -> str:
     """Map an arbitrary character onto something the flaps can show."""
     up = ch.upper()
     return up if up in FLAP_INDEX else " "
+
+
+def shade_card(card: pygame.Surface, amount: float) -> None:
+    """Darken the moving card so the fold reads as catching shadow."""
+    alpha = int(150 * max(0.0, min(1.0, amount)))
+    if alpha <= 0:
+        return
+    shade = pygame.Surface(card.get_size()).convert_alpha()
+    shade.fill((0, 0, 0, alpha))
+    card.blit(shade, (0, 0))
 
 
 class GlyphCache:
@@ -110,6 +120,32 @@ class GlyphCache:
             bot = tile.subsurface((0, self.half, w, h - self.half)).copy()
             self.tops[ch] = top
             self.bottoms[ch] = bot
+
+        # Pre-render every flip frame. The scaled card height and shade amount
+        # depend only on the frame index, so each (char, frame) card is
+        # rasterized once here instead of on every animation frame. Phase 1
+        # (f in the first half) folds the top card; phase 2 drops the bottom.
+        self.top_fold: dict[str, dict[int, pygame.Surface]] = {}
+        self.bot_drop: dict[str, dict[int, pygame.Surface]] = {}
+        for ch in FLAPS:
+            tf: dict[int, pygame.Surface] = {}
+            bd: dict[int, pygame.Surface] = {}
+            for f in range(FRAMES_PER_STEP):
+                t = f / FRAMES_PER_STEP
+                if t < 0.5:
+                    angle = (t / 0.5) * (math.pi / 2)
+                    sh = max(1, int(self.half * math.cos(angle)))
+                    card = pygame.transform.scale(self.tops[ch], (w, sh))
+                    shade_card(card, t / 0.5)
+                    tf[f] = card
+                else:
+                    angle = ((t - 0.5) / 0.5) * (math.pi / 2)
+                    sh = max(1, int(self.half * math.sin(angle)))
+                    card = pygame.transform.scale(self.bottoms[ch], (w, sh))
+                    shade_card(card, 1.0 - (t - 0.5) / 0.5)
+                    bd[f] = card
+            self.top_fold[ch] = tf
+            self.bot_drop[ch] = bd
 
     def char_at(self, idx: int) -> str:
         return FLAPS[idx % len(FLAPS)]
@@ -171,33 +207,18 @@ class Flap:
             # Behind it the next char's top is already revealed; bottom is current.
             screen.blit(c.tops[next_ch], (self.x, self.y))
             screen.blit(c.bottoms[cur_ch], (self.x, seam_y))
-            angle = (t / 0.5) * (math.pi / 2)          # 0 → 90°
-            scaled_h = max(1, int(c.half * math.cos(angle)))
-            card = pygame.transform.scale(c.tops[cur_ch], (c.w, scaled_h))
-            self._shade(card, t / 0.5)
+            # Pre-rendered, already scaled + shaded for this frame.
+            card = c.top_fold[cur_ch][self.frame]
             # Bottom edge stays pinned to the seam; top edge drops toward it.
-            screen.blit(card, (self.x, seam_y - scaled_h))
+            screen.blit(card, (self.x, seam_y - card.get_height()))
         else:
             # PHASE 2 — next char's bottom card falls from the seam downward.
             # Top is settled to next; behind the falling card is next's bottom.
             screen.blit(c.tops[next_ch], (self.x, self.y))
             screen.blit(c.bottoms[next_ch], (self.x, seam_y))
-            angle = ((t - 0.5) / 0.5) * (math.pi / 2)  # 0 → 90° (i.e. 90→180 fold)
-            scaled_h = max(1, int(c.half * math.sin(angle)))
-            card = pygame.transform.scale(c.bottoms[next_ch], (c.w, scaled_h))
-            self._shade(card, 1.0 - (t - 0.5) / 0.5)
+            card = c.bot_drop[next_ch][self.frame]
             # Top edge pinned to the seam; card grows downward as it lands.
             screen.blit(card, (self.x, seam_y))
-
-    @staticmethod
-    def _shade(card: pygame.Surface, amount: float) -> None:
-        """Darken the moving card so the fold reads as catching shadow."""
-        alpha = int(150 * max(0.0, min(1.0, amount)))
-        if alpha <= 0:
-            return
-        shade = pygame.Surface(card.get_size()).convert_alpha()
-        shade.fill((0, 0, 0, alpha))
-        card.blit(shade, (0, 0))
 
 
 class Board:
