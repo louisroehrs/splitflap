@@ -17,5 +17,5 @@
 # Zig build or target/release/... for Rust. Leave off --windowed for fullscreen.
 Type=Application
 Name=Split-Flap Board
-Exec=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://YOUR-URL/board.txt --cols 32 --rows 6 --interval 60
+Exec=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://gist.githubusercontent.com/louisroehrs/003813d760ae8e0588dc53690c5c530f/raw/hackerdojosign.txt --cols 36 --rows 12 --interval 60
 X-GNOME-Autostart-enabled=true

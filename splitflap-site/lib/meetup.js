@@ -110,7 +110,7 @@ export function renderEventTable(events, { cols = 32, maxRows = 5, timeZone } = 
   for (const ev of events.slice(0, maxRows)) {
     const name = pad(sanitize(ev.title), nameW);
     // A cancelled event replaces both the date and time columns with "cancelled".
-    if (/CANCEL/i.test(ev.status || "")) {
+    if (/Cancel/i.test(ev.status || "")) {
       lines.push(name + " " + pad("cancelled", dateW + gap + timeW));
     } else {
       lines.push(name + " " + pad(fmt.date(ev.dateTime), dateW) + " " + pad(fmt.time(ev.dateTime), timeW));

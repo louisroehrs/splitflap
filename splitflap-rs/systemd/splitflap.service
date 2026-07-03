@@ -24,7 +24,7 @@ PartOf=graphical-session.target
 # Fix the path (zig-out/bin for the Zig build, target/release for Rust) and URL.
 # Leave off --windowed so it runs fullscreen. Add --cols / --rows / --interval
 # as needed.
-ExecStart=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://example.com/board.txt --cols 32 --rows 6 --interval 60
+ExecStart=/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://gist.githubusercontent.com/louisroehrs/003813d760ae8e0588dc53690c5c530f/raw/hackerdojosign.txt --cols 36 --rows 12 --interval 60
 Restart=on-failure
 RestartSec=3
 
