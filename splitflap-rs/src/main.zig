@@ -8,6 +8,13 @@
 //     zig build -Doptimize=ReleaseFast
 //     ./zig-out/bin/splitflap_board https://example.com/board.txt
 //     ./zig-out/bin/splitflap_board URL --cols 32 --rows 6 --interval 60 --windowed
+//     ./zig-out/bin/splitflap_board URL --volume 0.5   # Solari clatter loudness
+//     ./zig-out/bin/splitflap_board URL --mute         # silence
+//
+// Each flap card that lands plays a short synthesized "clack"; a full board
+// update overlaps them into the characteristic Solari clatter. The sound is
+// generated at startup (no audio files) and mixed onto SDL's default audio
+// device — on a Pi that is the HDMI output once selected in raspi-config.
 //
 // Press Esc or q to quit.
 
@@ -54,6 +61,8 @@ const Args = struct {
     rows: usize = 6,
     interval: u64 = 60,
     windowed: bool = false,
+    sound: bool = true,
+    volume: f32 = 0.6,
 };
 
 fn fail(comptime fmt: []const u8, args: anytype) noreturn {
@@ -77,13 +86,17 @@ fn parseArgs(alloc: std.mem.Allocator, raw: std.process.Args) !Args {
             args.interval = try std.fmt.parseInt(u64, it.next() orelse fail("--interval needs a value", .{}), 10);
         } else if (std.mem.eql(u8, a, "--windowed")) {
             args.windowed = true;
+        } else if (std.mem.eql(u8, a, "--mute") or std.mem.eql(u8, a, "--no-sound")) {
+            args.sound = false;
+        } else if (std.mem.eql(u8, a, "--volume")) {
+            args.volume = try std.fmt.parseFloat(f32, it.next() orelse fail("--volume needs a value", .{}));
         } else if (std.mem.startsWith(u8, a, "--")) {
             fail("unknown option: {s}", .{a});
         } else {
             url = try alloc.dupe(u8, a);
         }
     }
-    args.url = url orelse fail("usage: splitflap_board URL [--cols N] [--rows N] [--interval S] [--windowed]", .{});
+    args.url = url orelse fail("usage: splitflap_board URL [--cols N] [--rows N] [--interval S] [--windowed] [--volume F | --mute]", .{});
     return args;
 }
 
@@ -306,6 +319,174 @@ fn resetMod(tex: *c.SDL_Texture) void {
     _ = c.SDL_SetTextureColorMod(tex, 255, 255, 255);
 }
 
+// ---------------------------------------------------------------------------
+// Solari clatter. A physical split-flap "clacks" each time a card drops onto
+// the seam. We synthesize a few short click samples (a noise transient plus a
+// little tonal body, under a fast exponential decay), then mix overlapping
+// copies with SDL's audio callback so a whole-board update sounds like a wash
+// of clatter rather than one flat tick.
+
+const AUDIO_FREQ: c_int = 44100;
+const N_VARIANTS: usize = 6; // slightly different clicks, chosen at random
+const MAX_VOICES: usize = 24; // simultaneous overlapping clicks
+const CLICK_PEAK: f32 = 0.22; // per-click peak as a fraction of full scale
+
+/// One playing click: a read cursor into a variant buffer plus a start delay
+/// (so clicks triggered on the same frame de-phase a little) and a gain.
+const Voice = struct {
+    buf: []const i16 = &[_]i16{},
+    pos: usize = 0,
+    delay: u32 = 0,
+    gain: f32 = 1.0,
+    active: bool = false,
+};
+
+/// Synthesize one click variant into a freshly allocated i16 buffer.
+fn synthVariant(alloc: std.mem.Allocator, rnd: std.Random) ![]i16 {
+    const len: usize = @intCast(@divTrunc(AUDIO_FREQ, 22)); // ~45 ms
+    const buf = try alloc.alloc(i16, len);
+    const tau = 0.006 + rnd.float(f32) * 0.010; // decay 6..16 ms
+    const freq = 200.0 + rnd.float(f32) * 500.0; // body 200..700 Hz
+    const noise_amt = 0.55 + rnd.float(f32) * 0.30;
+    const two_pi = 2.0 * std.math.pi;
+    for (0..len) |i| {
+        const time = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(AUDIO_FREQ));
+        const env = @exp(-time / tau);
+        const noise = rnd.float(f32) * 2.0 - 1.0;
+        const body = @sin(two_pi * freq * time);
+        const s = env * (noise_amt * noise + (1.0 - noise_amt) * body) * CLICK_PEAK;
+        buf[i] = @intFromFloat(std.math.clamp(s * 32767.0, -32768.0, 32767.0));
+    }
+    return buf;
+}
+
+const Sound = struct {
+    alloc: std.mem.Allocator,
+    want_audio: bool,
+    has_audio: bool = false,
+    variants_made: bool = false,
+    dev: c.SDL_AudioDeviceID = 0,
+    variants: [N_VARIANTS][]i16 = undefined,
+    voices: [MAX_VOICES]Voice = [_]Voice{.{}} ** MAX_VOICES,
+    master: f32,
+    rng: std.Random.DefaultPrng,
+
+    /// Generate the click bank. The device is not opened here — see `start` —
+    /// so the callback can be handed a pointer to the caller's stable storage.
+    fn init(alloc: std.mem.Allocator, enabled: bool, volume: f32) !Sound {
+        const seed: u64 = c.SDL_GetPerformanceCounter();
+        var self = Sound{
+            .alloc = alloc,
+            .want_audio = enabled,
+            .master = std.math.clamp(volume, 0.0, 1.0),
+            .rng = std.Random.DefaultPrng.init(seed),
+        };
+        if (!enabled) return self;
+        const rnd = self.rng.random();
+        for (0..N_VARIANTS) |k| self.variants[k] = try synthVariant(alloc, rnd);
+        self.variants_made = true;
+        return self;
+    }
+
+    /// Open the default audio device with the mixer callback. `self` must be at
+    /// its final address (the callback keeps the pointer). Failure is non-fatal:
+    /// the board just runs silent.
+    fn start(self: *Sound) void {
+        if (!self.want_audio) return;
+        if (c.SDL_InitSubSystem(c.SDL_INIT_AUDIO) != 0) {
+            std.debug.print("audio disabled (SDL_InitSubSystem: {s})\n", .{c.SDL_GetError()});
+            return;
+        }
+        var want: c.SDL_AudioSpec = std.mem.zeroes(c.SDL_AudioSpec);
+        want.freq = AUDIO_FREQ;
+        want.format = c.AUDIO_S16SYS;
+        want.channels = 1;
+        want.samples = 512;
+        want.callback = audioCallback;
+        want.userdata = self;
+        var have: c.SDL_AudioSpec = undefined;
+        // allowed_changes = 0: SDL converts internally so the callback always
+        // sees mono S16 at AUDIO_FREQ, whatever the HDMI sink prefers.
+        const dev = c.SDL_OpenAudioDevice(null, 0, &want, &have, 0);
+        if (dev == 0) {
+            std.debug.print("audio disabled (SDL_OpenAudioDevice: {s})\n", .{c.SDL_GetError()});
+            c.SDL_QuitSubSystem(c.SDL_INIT_AUDIO);
+            return;
+        }
+        self.dev = dev;
+        self.has_audio = true;
+        c.SDL_PauseAudioDevice(dev, 0); // start playback
+    }
+
+    fn deinit(self: *Sound) void {
+        if (self.has_audio) {
+            c.SDL_CloseAudioDevice(self.dev); // stops the callback first
+            c.SDL_QuitSubSystem(c.SDL_INIT_AUDIO);
+        }
+        if (self.variants_made) {
+            for (self.variants) |v| self.alloc.free(v);
+        }
+    }
+
+    /// Trigger up to `count` overlapping clicks (one per card that just landed).
+    /// Capped so a full-board refresh is a rich wash, not a clipped blast.
+    fn clack(self: *Sound, count: usize) void {
+        if (!self.has_audio) return;
+        const want = @min(count, 10);
+        const rnd = self.rng.random();
+        c.SDL_LockAudioDevice(self.dev); // callback won't run while held
+        defer c.SDL_UnlockAudioDevice(self.dev);
+        var placed: usize = 0;
+        for (&self.voices) |*v| {
+            if (placed >= want) break;
+            if (v.active) continue;
+            v.buf = self.variants[rnd.intRangeLessThan(usize, 0, N_VARIANTS)];
+            v.pos = 0;
+            v.gain = 0.5 + rnd.float(f32) * 0.5;
+            v.delay = rnd.intRangeLessThan(u32, 0, @intCast(@divTrunc(AUDIO_FREQ, 120))); // 0..~8 ms
+            v.active = true;
+            placed += 1;
+        }
+    }
+};
+
+/// SDL audio thread: sum the active voices into the output buffer (mono S16).
+fn audioCallback(userdata: ?*anyopaque, stream: [*c]u8, len_bytes: c_int) callconv(.c) void {
+    const self: *Sound = @ptrCast(@alignCast(userdata.?));
+    const n: usize = @intCast(@divTrunc(len_bytes, 2)); // i16 samples
+    const out: [*]i16 = @ptrCast(@alignCast(stream));
+
+    var acc: [2048]f32 = undefined;
+    if (n > acc.len) {
+        // Never happens (samples fixed at 512), but keep it safe: emit silence.
+        for (0..n) |k| out[k] = 0;
+        return;
+    }
+    for (0..n) |k| acc[k] = 0;
+
+    for (&self.voices) |*v| {
+        if (!v.active) continue;
+        var k: usize = 0;
+        while (k < n) : (k += 1) {
+            if (v.delay > 0) {
+                v.delay -= 1;
+                continue;
+            }
+            if (v.pos >= v.buf.len) {
+                v.active = false;
+                break;
+            }
+            acc[k] += @as(f32, @floatFromInt(v.buf[v.pos])) * v.gain;
+            v.pos += 1;
+        }
+    }
+
+    for (0..n) |k| {
+        const s = std.math.clamp(acc[k] * self.master, -32768.0, 32767.0);
+        out[k] = @intFromFloat(s);
+    }
+}
+
 /// A single character cell. Animates from its current glyph toward a target by
 /// rolling forward through the alphabet, one mechanical flip per intermediate.
 const Flap = struct {
@@ -319,16 +500,19 @@ const Flap = struct {
         return self.cur != self.target or self.frame != 0;
     }
 
-    fn advance(self: *Flap, n_flaps: usize) void {
+    /// Advance one frame. Returns true on the frame a card lands (a "clack").
+    fn advance(self: *Flap, n_flaps: usize) bool {
         if (self.cur == self.target) {
             self.frame = 0;
-            return;
+            return false;
         }
         self.frame += 1;
         if (self.frame >= FRAMES_PER_STEP) {
             self.cur = (self.cur + 1) % n_flaps;
             self.frame = 0;
+            return true;
         }
+        return false;
     }
 
     fn draw(self: Flap, renderer: *c.SDL_Renderer, cache: *GlyphCache, alpha: Alphabet) void {
@@ -505,6 +689,12 @@ pub fn main(init: std.process.Init) !void {
     var board = try Board.init(gpa, cache, screen_w, screen_h, args.cols, args.rows);
     defer board.deinit();
 
+    // Solari clatter. `sound` lives for the rest of main, so its address is
+    // stable for the audio callback that `start` hands it.
+    var sound = try Sound.init(gpa, args.sound, args.volume);
+    defer sound.deinit();
+    sound.start();
+
     // Initial paint of the settled (all-blank) board.
     _ = c.SDL_SetRenderDrawColor(renderer, BG[0], BG[1], BG[2], 255);
     _ = c.SDL_RenderClear(renderer);
@@ -546,7 +736,11 @@ pub fn main(init: std.process.Init) !void {
         // Advance and, if anything moved, redraw the whole board. An idle board
         // does no drawing.
         if (board.anyAnimating()) {
-            for (board.flaps) |*f| f.advance(alpha.len());
+            var landed: usize = 0;
+            for (board.flaps) |*f| {
+                if (f.advance(alpha.len())) landed += 1;
+            }
+            if (landed > 0) sound.clack(landed);
             _ = c.SDL_SetRenderDrawColor(renderer, BG[0], BG[1], BG[2], 255);
             _ = c.SDL_RenderClear(renderer);
             for (board.flaps) |f| f.draw(renderer, &cache, alpha);
