@@ -54,8 +54,8 @@ static const unsigned long REFRESH_INTERVAL_S = 60;
 // Board geometry. On a 320x240 panel these give ~12px wide x 30px tall cells,
 // which is about as small as stays legible. Raise COLS to fit wider lines at
 // the cost of readability.
-static const int COLS = 26;
-static const int ROWS = 8;
+static const int COLS = 36;
+static const int ROWS = 12;
 
 // ------------------------- SPLIT-FLAP ALPHABET -----------------------------
 
@@ -68,8 +68,8 @@ static int NFLAPS;
 // ------------------------- COLOURS (RGB565) --------------------------------
 
 #define COL_BG     TFT_BLACK
-#define COL_TILET  0x2104   // upper card, a touch lighter (31,31,31)
-#define COL_TILEB  0x18E3   // lower card                    (22,22,22)
+#define COL_TILET  0x0861   // upper card, a touch lighter (~14,14,14)
+#define COL_TILEB  0x0841   // lower card                   (~9,9,9)
 #define COL_TEXT   0xF79E   // near-white                   (242,242,242)
 #define COL_SEAM   TFT_BLACK
 
@@ -134,7 +134,7 @@ static void renderCell(char settledTop, char settledBot) {
   (void)settledBot;
 
   // Seam line.
-  cellSprite.drawFastHLine(1, halfH, cellW - 2, COL_SEAM);
+//  cellSprite.drawFastHLine(1, halfH, cellW - 2, COL_SEAM);
 }
 
 // Draw a settled cell (no animation) directly to the panel.
@@ -269,7 +269,7 @@ void setup() {
   NFLAPS = strlen(FLAPS);
 
   tft.init();
-  tft.setRotation(1);            // landscape 320x240
+  tft.setRotation(1);            // landscape 320x240 (use 3 to flip 180°)
   tft.fillScreen(COL_BG);
 
   // Backlight on (some CYD variants gate it on TFT_BL / GPIO 21).
@@ -279,7 +279,7 @@ void setup() {
 #endif
 
   // Geometry: centre the grid on the panel.
-  int sw = tft.width(), sh = tft.height();
+  int sw = tft.width(), sh = tft.height() -50;
   cellW = sw / COLS;
   cellH = sh / ROWS;
   halfH = cellH / 2;

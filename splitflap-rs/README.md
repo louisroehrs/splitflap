@@ -16,7 +16,7 @@ equivalent needed).
 # deps: SDL2, SDL2_ttf, and a monospace font (see candidates in src/main.zig)
 #   Debian/Pi: sudo apt install libsdl2-dev libsdl2-ttf-dev fonts-dejavu-core
 #   macOS:     brew install sdl2 sdl2_ttf
-zig build -Doptimize=ReleaseFast
+zig build -Doptimize=ReleaseFast  --strip
 ./zig-out/bin/splitflap_board URL --cols 32 --rows 6 --interval 60 --windowed
 # or: zig build run -- URL --windowed
 ```
@@ -92,7 +92,7 @@ cheapest first:
   compile memory, and the runtime difference is irrelevant here (the board
   sleeps when idle):
   ```bash
-  zig build              # debug, lowest memory
+  zig build -Doptimize=ReleaseFast             # debug, lowest memory
   ```
 - **Increase swap** to 2 GB:
   ```bash
@@ -268,9 +268,32 @@ Gotchas:
   the desktop autostart entry below instead — it's the more reliable path on the
   Pi.
 
-### Desktop autostart (recommended on the Pi)
-The desktop session reliably runs `~/.config/autostart/*.desktop` entries once a
-display exists. A ready-to-edit entry lives at
+### labwc autostart (what actually works on current Pi OS)
+Current Raspberry Pi OS (Bookworm) uses the **labwc** Wayland compositor, which
+runs a shell script at session start **after the desktop UI/panel is in place** —
+so the display is ready when the board launches. This is the method that works;
+the systemd unit and the `.desktop` entry below both tend to fire too early
+(before a display exists) and fail.
+
+Create `~/.config/labwc/autostart` (a new file), make it executable, and
+background the command with `&`:
+
+```bash
+mkdir -p ~/.config/labwc
+cat > ~/.config/labwc/autostart <<'EOF'
+#!/bin/sh
+/home/pi/splitflap-rs/zig-out/bin/splitflap_board https://gist.githubusercontent.com/louisroehrs/003813d760ae8e0588dc53690c5c530f/raw/hackerdojosign.txt --cols 36 --rows 12 --interval 60 &
+EOF
+chmod +x ~/.config/labwc/autostart
+sudo reboot
+```
+
+Fix the binary path and URL for your setup (use `zig-out/bin/...` for the Zig
+build or `target/release/...` for Rust; drop `--windowed` for fullscreen).
+
+### Desktop autostart (older / X11 sessions)
+On an X11/LXDE session the desktop runs `~/.config/autostart/*.desktop` entries
+once a display exists. A ready-to-edit entry lives at
 [`autostart/splitflap.desktop`](autostart/splitflap.desktop):
 
 ```bash

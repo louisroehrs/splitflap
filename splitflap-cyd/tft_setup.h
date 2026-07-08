@@ -9,7 +9,11 @@
 
 #define USER_SETUP_INFO "CYD ESP32-2432S028R ILI9341"
 
-#define ILI9341_DRIVER            // the CYD's ILI9341 panel
+#define ILI9341_2_DRIVER          // CYD's ILI9341 variant. The "_2" alt init
+                                  // sequence fixes a dead/offset strip on the
+                                  // right of many CYD panels. If it doesn't
+                                  // build or draws worse, fall back to
+                                  // ILI9341_DRIVER.
 
 // SPI pin map for the CYD's display.
 #define TFT_MISO 12
@@ -20,8 +24,8 @@
 #define TFT_RST  -1
 #define TFT_BL   21               // backlight
 #define TFT_BACKLIGHT_ON HIGH
-#define TFT_WIDTH  320
-#define TFT_HEIGHT 240
+#define TFT_WIDTH  240            // ILI9341 native portrait size; the sketch's
+#define TFT_HEIGHT 320            // setRotation(1) turns it to 320x240 landscape
 
 // Fonts used by the sketch (font 1 / GLCD is the cell glyph; font 2 the splash).
 #define LOAD_GLCD
@@ -33,5 +37,5 @@
 // If red/blue are swapped, uncomment:
 // #define TFT_RGB_ORDER TFT_BGR
 // If the image is colour-inverted, uncomment one of:
-// #define TFT_INVERSION_ON
+#define TFT_INVERSION_ON
 // #define TFT_INVERSION_OFF
