@@ -205,6 +205,28 @@ zig build -Doptimize=ReleaseFast
 zig build run -- https://example.com/board.txt --windowed
 ```
 
+### Solari clatter sound (Zig only)
+The Zig port plays a synthesized split-flap "clack" each time a card lands; a
+full-board update overlaps them into the classic Solari clatter. The clicks are
+generated at startup (no audio files) and mixed onto SDL's **default audio
+device**, so on a Pi they follow the HDMI video out once HDMI is your audio sink.
+
+```bash
+./zig-out/bin/splitflap_board URL --volume 0.5   # 0.0..1.0, default 0.6
+./zig-out/bin/splitflap_board URL --mute         # or --no-sound
+```
+
+Getting it out the **HDMI** port on a Pi:
+- `sudo raspi-config` → *System Options → Audio* → pick the HDMI output. That
+  makes HDMI the default ALSA sink, which is what SDL opens.
+- Verify with `speaker-test -c2 -twav` (Ctrl-C to stop). If you hear it there,
+  the board will use it too.
+- The display and sound are independent SDL subsystems: audio failing (e.g. a
+  headless/no-sink setup) is non-fatal — the board just prints a notice and runs
+  silent. `--mute` skips opening the device entirely.
+
+(The Rust build has no audio; this is Zig-only.)
+
 ## Auto-start on boot (Raspberry Pi)
 The board uses SDL2, so it needs a graphical (X/Wayland) session — it can't run
 from a plain headless boot service. You need two things: the Pi must
