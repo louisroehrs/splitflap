@@ -49,6 +49,27 @@ struct BoardView: View {
                 drawCell(&ctx, cell, x: x, y: y, w: cellW, h: cellH, half: half)
             }
         }
+
+        drawGridLines(&ctx, gx: gx, gy: gy, cellW: cellW, cellH: cellH)
+    }
+
+    /// Thin separator hairlines between the rows and columns, like the frames
+    /// between the units on a real split-flap board.
+    private func drawGridLines(_ ctx: inout GraphicsContext,
+                               gx: Int, gy: Int, cellW: Int, cellH: Int) {
+        let shading = GraphicsContext.Shading.color(.black)
+        let t: CGFloat = 1
+        let gridW = cellW * model.cols
+        let gridH = cellH * model.rows
+
+        for col in 1..<max(model.cols, 1) {
+            let lx = CGFloat(gx + col * cellW) - t / 2
+            ctx.fill(Path(CGRect(x: lx, y: CGFloat(gy), width: t, height: CGFloat(gridH))), with: shading)
+        }
+        for r in 1..<max(model.rows, 1) {
+            let ly = CGFloat(gy + r * cellH) - t / 2
+            ctx.fill(Path(CGRect(x: CGFloat(gx), y: ly, width: CGFloat(gridW), height: t)), with: shading)
+        }
     }
 
     private func drawCell(_ ctx: inout GraphicsContext, _ cell: Cell,
